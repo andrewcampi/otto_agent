@@ -1,16 +1,22 @@
-Otto - Python Cursor-like Agent
+# Otto - Python Cursor-like Agent
 
-Install (from GitHub)
-- python3 -m pip install git+https://github.com/andrewcampi/otto_agent.git
+### Install (from GitHub)
 
-Configure
+```bash
+python3 -m pip install git+https://github.com/andrewcampi/otto_agent.git
+```
+
+### Configure
+
 - Create a `.env` with `OPENAI_API_KEY=...` (or pass api_key to the client)
 
-CLI usage
+### CLI usage
+
 - python3 -m otto
 - python3 -m otto --verbose
 
-Python client usage
+### Python client usage
+
 ```python
 import os
 from dotenv import load_dotenv
@@ -26,14 +32,17 @@ print(r1["final_text"])  # human text
 print(r1["steps"])      
 ```
 
-Included tools
+### Included tools
+
 - read_file, list_dir, grep_search (rg), file_search, edit_file, delete_file, run_terminal_cmd
 
-Notes
+### Notes
+
 - Prompts ship with the package (otto/prompts) and are auto-loaded.
 - Model defaults to gpt-5-mini; override via OTTO_MODEL env.
 
-Custom tools (advanced)
+###Custom tools (advanced)
+
 You can add extra tools to a specific client instance. Built-in tools are always present; your tools are additional. Provide:
 - extra_tools: a list of OpenAI tool specs (function tools JSON).
 - extra_tool_handler (optional): a default callable for any unknown tool.
@@ -92,4 +101,3 @@ client = OttoAgent(
 )
 print(client.prompt("Calculate 2 + 3 * 4, then list the CWD.")["final_text"])
 ```
-
