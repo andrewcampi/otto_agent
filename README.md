@@ -41,7 +41,7 @@ print(r1["steps"])
 - Prompts ship with the package (otto/prompts) and are auto-loaded.
 - Model defaults to gpt-5-mini; override via OTTO_MODEL env.
 
-###Custom tools (advanced)
+### Custom tools (advanced)
 
 You can add extra tools to a specific client instance. Built-in tools are always present; your tools are additional. Provide:
 - extra_tools: a list of OpenAI tool specs (function tools JSON).
