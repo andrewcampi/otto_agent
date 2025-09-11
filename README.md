@@ -8,12 +8,17 @@ python3 -m pip install git+https://github.com/andrewcampi/otto_agent.git
 
 ### Configure
 
-- Create a `.env` with `OPENAI_API_KEY=...` (or pass api_key to the client)
+- Create a `.env` (or export env vars) with:
+  - `OPENAI_API_KEY=...` (required)
+  - `OPENAI_BASE_URL=...` (optional; point to local/Ollama-compatible server)
+  - `MODEL=...` (optional; overrides `OTTO_MODEL`; default `gpt-5-mini`)
 
 ### CLI usage
 
-- python3 -m otto
-- python3 -m otto --verbose
+- `python3 -m otto`
+- `python3 -m otto --verbose`
+
+The CLI reads `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `MODEL` automatically.
 
 ### Python client usage
 
@@ -38,8 +43,8 @@ print(r1["steps"])
 
 ### Notes
 
-- Prompts ship with the package (otto/prompts) and are auto-loaded.
-- Model defaults to gpt-5-mini; override via OTTO_MODEL env.
+- Prompts ship with the package (`otto/prompts`) and are auto-loaded.
+- Model defaults to `gpt-5-mini`; override via `MODEL` (preferred) or `OTTO_MODEL`.
 
 ### Custom tools (advanced)
 
