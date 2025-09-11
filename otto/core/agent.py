@@ -6,7 +6,7 @@ from openai import OpenAI
 
 from .prompts import load_strongest_system_prompt
 from .config import get_openai_api_key, get_openai_base_url, get_model_id
-from ..tools.registry import get_tool_specs, handle_tool_call
+from ..tools.registry import get_tool_specs, handle_tool_call, get_available_tool_names
 
 
 class OttoAgent:
@@ -118,28 +118,47 @@ class OttoAgent:
             if finalized_calls:
                 # execute tools, append, and continue loop
                 tool_results = []
+                unknown_tool_calls = []
+
                 for call in finalized_calls:
                     if verbose:
                         print(f"[tool] call -> {call['function']['name']} args={call['function']['arguments']!r}")
                     result = handle_tool_call(call)
-                    # If builtin handler didn't recognize, try user handler
+
+                    # Check if this is an unknown tool call
                     try:
-                        ok_probe = json.loads(result.get("content", "{}"))
-                    except Exception:
-                        ok_probe = {}
-                    unknown = isinstance(ok_probe, dict) and ok_probe.get("ok") is False and "Unknown tool" in ok_probe.get("error", "")
-                    if unknown:
-                        # Prefer name-specific handler if provided
-                        name = (call.get("function") or {}).get("name") or ""
-                        handler = self.extra_tool_handlers.get(name) if name else None
-                        if handler:
-                            result = handler(call)
-                        elif self.extra_tool_handler:
-                            result = self.extra_tool_handler(call)
+                        content = json.loads(result.get("content", "{}"))
+                        if isinstance(content, dict) and content.get('unknown_tool'):
+                            tool_name = content.get('tool_name', call['function']['name'])
+                            if verbose:
+                                print(f"Invalid tool call: The model attempted to use a tool called `{tool_name}` but it does not exist.")
+                            unknown_tool_calls.append(tool_name)
+
+                            # Try extra handlers for unknown tools
+                            handler = self.extra_tool_handlers.get(tool_name) if tool_name else None
+                            if handler:
+                                result = handler(call)
+                            elif self.extra_tool_handler:
+                                result = self.extra_tool_handler(call)
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+
                     if verbose:
                         preview = result.get("content", "")
                         print(f"[tool] result <- {preview[:500]}")
                     tool_results.append(result)
+
+                # If we had any unknown tool calls that weren't handled by extra handlers, provide feedback
+                if unknown_tool_calls:
+                    available_tools = get_available_tool_names()
+                    feedback_message = f"The tool(s) {', '.join(f'`{t}`' for t in unknown_tool_calls)} do not exist. Please use only the tools that are available to you in this session. The available tools are: {', '.join(f'`{t}`' for t in available_tools)}."
+                    # Add this as a tool result so it appears in the conversation
+                    tool_results.append({
+                        "role": "tool",
+                        "tool_call_id": f"unknown_tools_feedback_{len(self.history)}",
+                        "name": "system_feedback",
+                        "content": json.dumps({"ok": True, "feedback": feedback_message})
+                    })
                 self.history.append({
                     "role": "assistant",
                     "tool_calls": finalized_calls,

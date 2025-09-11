@@ -117,6 +117,12 @@ def get_tool_specs() -> List[Dict[str, Any]]:
     ]
 
 
+def get_available_tool_names() -> List[str]:
+    """Get a list of all available tool names."""
+    specs = get_tool_specs()
+    return [spec["function"]["name"] for spec in specs]
+
+
 def handle_tool_call(tool_call: Dict[str, Any]) -> Dict[str, Any]:
     fn = tool_call.get("function", {})
     name = fn.get("name")
@@ -249,8 +255,15 @@ def handle_tool_call(tool_call: Dict[str, Any]) -> Dict[str, Any]:
                 result = {"ok": False, "error": str(e)}
         return {"role": "tool", "tool_call_id": tool_call.get("id"), "name": name, "content": json.dumps(result)}
 
-    # Unknown tool
-    result = {"ok": False, "error": f"Unknown tool '{name}'"}
+    # Unknown tool - return structured error that CLI can detect
+    available_tools = get_available_tool_names()
+    result = {
+        "ok": False,
+        "error": f"Unknown tool '{name}'",
+        "unknown_tool": True,
+        "tool_name": name,
+        "available_tools": available_tools
+    }
     return {"role": "tool", "tool_call_id": tool_call.get("id"), "name": name, "content": json.dumps(result)}
 
 

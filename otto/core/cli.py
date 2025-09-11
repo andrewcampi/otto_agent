@@ -1,10 +1,11 @@
 import sys
+import json
 from typing import Any, Dict, List
 
 from ..core.openai_client import get_openai_client
 from ..core.prompts import load_strongest_system_prompt
 from ..core.config import get_model_id
-from ..tools.registry import get_tool_specs, handle_tool_call
+from ..tools.registry import get_tool_specs, handle_tool_call, get_available_tool_names
 
 
 MODEL_ID = get_model_id()
@@ -102,13 +103,38 @@ def run_cli(verbose: bool = False) -> int:
             if finalized_calls:
                 # Execute tools and loop again without asking user
                 tool_results = []
+                unknown_tool_calls = []
+
                 for call in finalized_calls:
                     if verbose:
                         print(f"[tool] call -> {call['function']['name']} args={call['function']['arguments']!r}")
                     result = handle_tool_call(call)
+
+                    # Check if this is an unknown tool call
+                    try:
+                        content = json.loads(result['content'])
+                        if isinstance(content, dict) and content.get('unknown_tool'):
+                            tool_name = content.get('tool_name', call['function']['name'])
+                            print(f"Invalid tool call: The model attempted to use a tool called `{tool_name}` but it does not exist.")
+                            unknown_tool_calls.append(tool_name)
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+
                     if verbose:
                         print(f"[tool] result <- {result['content'][:500]}")
                     tool_results.append(result)
+
+                # If we had any unknown tool calls, provide helpful feedback to the model
+                if unknown_tool_calls:
+                    available_tools = get_available_tool_names()
+                    feedback_message = f"The tool(s) {', '.join(f'`{t}`' for t in unknown_tool_calls)} do not exist. Please use only the tools that are available to you in this session. The available tools are: {', '.join(f'`{t}`' for t in available_tools)}."
+                    # Add this as a tool result so it appears in the conversation
+                    tool_results.append({
+                        "role": "tool",
+                        "tool_call_id": f"unknown_tools_feedback_{len(history)}",
+                        "name": "system_feedback",
+                        "content": json.dumps({"ok": True, "feedback": feedback_message})
+                    })
                 history.append({
                     "role": "assistant",
                     "tool_calls": finalized_calls,
