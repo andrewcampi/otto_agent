@@ -7,7 +7,7 @@ from ..core.prompts import load_strongest_system_prompt
 from ..tools.registry import get_tool_specs, handle_tool_call
 
 
-MODEL_ID = os.getenv("OTTO_MODEL", "gpt-5-mini")
+MODEL_ID = os.getenv("MODEL") or os.getenv("OTTO_MODEL") or "gpt-5-mini"
 
 
 def run_cli(verbose: bool = False) -> int:
