@@ -21,11 +21,12 @@ class OttoAgent:
         key = api_key or os.getenv("OPENAI_API_KEY")
         if not key:
             raise RuntimeError("api_key is required (or set OPENAI_API_KEY)")
-        if base_url:
-            self.client = OpenAI(api_key=key, base_url=base_url)
+        resolved_base_url = base_url or os.getenv("OPENAI_BASE_URL")
+        if resolved_base_url:
+            self.client = OpenAI(api_key=key, base_url=resolved_base_url)
         else:
             self.client = OpenAI(api_key=key)
-        self.model = os.getenv("OTTO_MODEL", "gpt-5-mini")
+        self.model = os.getenv("MODEL") or os.getenv("OTTO_MODEL") or "gpt-5-mini"
         self.system_prompt = load_strongest_system_prompt()
         # Default tools
         self.tools = get_tool_specs()
