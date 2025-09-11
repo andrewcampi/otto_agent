@@ -8,33 +8,31 @@ python3 -m pip install git+https://github.com/andrewcampi/otto_agent.git
 
 ### Configure
 
-- Create a `.env` (or export env vars) with:
+- Create a `.env` file (copy from `.env.example`) with:
   - `OPENAI_API_KEY=...` (required)
   - `OPENAI_BASE_URL=...` (optional; point to local/Ollama-compatible server)
   - `MODEL=...` (optional; overrides `OTTO_MODEL`; default `gpt-5-mini`)
+
+Environment variables are automatically loaded from `.env` files using python-dotenv.
 
 ### CLI usage
 
 - `python3 -m otto`
 - `python3 -m otto --verbose`
 
-The CLI reads `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `MODEL` automatically.
+The CLI automatically loads environment variables from `.env` files and reads `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `MODEL`.
 
 ### Python client usage
 
 ```python
-import os
-from dotenv import load_dotenv
 from otto import OttoAgent
 
-load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-client = OttoAgent(api_key=OPENAI_API_KEY)  # optional base_url to use local models
+# Environment variables are automatically loaded from .env files
+client = OttoAgent()  # api_key and base_url loaded from environment
 r1 = client.prompt("List the CWD and summarize.")
 print(r1["final_text"])  # human text
 # Full step logs (assistant text fragments + tool_calls per step)
-print(r1["steps"])      
+print(r1["steps"])
 ```
 
 ### Included tools
@@ -55,12 +53,9 @@ You can add extra tools to a specific client instance. Built-in tools are always
 
 Example: a simple calculator tool
 ```python
-import os
-from dotenv import load_dotenv
 from otto import OttoAgent
 
-load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# Environment variables are automatically loaded from .env files
 
 calc_tool = {
     "type": "function",
@@ -100,7 +95,6 @@ def calc_handler(tool_call: dict) -> dict:
     }
 
 client = OttoAgent(
-    api_key=OPENAI_API_KEY,
     extra_tools=[calc_tool],
     extra_tool_handlers={"calc": calc_handler},
 )

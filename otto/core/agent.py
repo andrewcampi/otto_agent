@@ -1,4 +1,3 @@
-import os
 import sys
 import json
 from typing import Any, Dict, List, Optional, Callable
@@ -6,6 +5,7 @@ from typing import Any, Dict, List, Optional, Callable
 from openai import OpenAI
 
 from .prompts import load_strongest_system_prompt
+from .config import get_openai_api_key, get_openai_base_url, get_model_id
 from ..tools.registry import get_tool_specs, handle_tool_call
 
 
@@ -18,15 +18,15 @@ class OttoAgent:
         extra_tool_handler: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
         extra_tool_handlers: Optional[Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]]] = None,
     ) -> None:
-        key = api_key or os.getenv("OPENAI_API_KEY")
+        key = api_key or get_openai_api_key()
         if not key:
             raise RuntimeError("api_key is required (or set OPENAI_API_KEY)")
-        resolved_base_url = base_url or os.getenv("OPENAI_BASE_URL")
+        resolved_base_url = base_url or get_openai_base_url()
         if resolved_base_url:
             self.client = OpenAI(api_key=key, base_url=resolved_base_url)
         else:
             self.client = OpenAI(api_key=key)
-        self.model = os.getenv("MODEL") or os.getenv("OTTO_MODEL") or "gpt-5-mini"
+        self.model = get_model_id()
         self.system_prompt = load_strongest_system_prompt()
         # Default tools
         self.tools = get_tool_specs()

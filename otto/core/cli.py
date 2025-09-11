@@ -1,13 +1,13 @@
-import os
 import sys
 from typing import Any, Dict, List
 
 from ..core.openai_client import get_openai_client
 from ..core.prompts import load_strongest_system_prompt
+from ..core.config import get_model_id
 from ..tools.registry import get_tool_specs, handle_tool_call
 
 
-MODEL_ID = os.getenv("MODEL") or os.getenv("OTTO_MODEL") or "gpt-5-mini"
+MODEL_ID = get_model_id()
 
 
 def run_cli(verbose: bool = False) -> int:
