@@ -2,6 +2,8 @@ import sys
 import json
 from typing import Any, Dict, List
 
+from openai import APIError
+
 from ..core.openai_client import get_openai_client
 from ..core.prompts import load_strongest_system_prompt
 from ..core.config import get_model_id
@@ -46,41 +48,70 @@ def run_cli(verbose: bool = False) -> int:
             assistant_text_chunks: List[str] = []
             acc_tool_calls: Dict[int, Dict[str, Any]] = {}
 
-            for event in stream:
-                choice = event.choices[0]
-                delta = choice.delta
-                if not delta:
+            try:
+                for event in stream:
+                    choice = event.choices[0]
+                    delta = choice.delta
+                    if not delta:
+                        continue
+                    content = getattr(delta, "content", None)
+                    if content:
+                        assistant_text_chunks.append(content)
+                        sys.stdout.write(content)
+                        sys.stdout.flush()
+                    tcs = getattr(delta, "tool_calls", None)
+                    if tcs:
+                        for tc in tcs:
+                            idx = getattr(tc, "index", 0)
+                            if idx not in acc_tool_calls:
+                                acc_tool_calls[idx] = {
+                                    "id": None,
+                                    "type": "function",
+                                    "function": {"name": None, "arguments": ""},
+                                }
+                            acc = acc_tool_calls[idx]
+                            tc_id = getattr(tc, "id", None)
+                            if tc_id:
+                                acc["id"] = tc_id
+                            tc_type = getattr(tc, "type", None)
+                            if tc_type:
+                                acc["type"] = tc_type
+                            fn = getattr(tc, "function", None)
+                            if fn:
+                                fn_name = getattr(fn, "name", None)
+                                fn_args = getattr(fn, "arguments", None)
+                                if fn_name:
+                                    acc["function"]["name"] = fn_name
+                                if fn_args:
+                                    acc["function"]["arguments"] += fn_args
+
+            except APIError as e:
+                # Handle OpenAI API errors, particularly tool validation errors
+                error_msg = str(e)
+                if "tool call validation failed" in error_msg and "was not in request.tools" in error_msg:
+                    # Extract tool name from error message if possible
+                    import re
+                    tool_match = re.search(r"attempted to call tool '([^']+)'", error_msg)
+                    invalid_tool = tool_match.group(1) if tool_match else "unknown"
+
+                    print(f"Invalid tool call: The model attempted to use a tool called `{invalid_tool}` but it does not exist.")
+
+                    # Add feedback to the model
+                    available_tools = get_available_tool_names()
+                    feedback_message = f"The tool `{invalid_tool}` does not exist. Please use only the tools that are available to you in this session. The available tools are: {', '.join(f'`{t}`' for t in available_tools)}."
+
+                    # Create a synthetic tool result for the feedback
+                    history.append({
+                        "role": "assistant",
+                        "content": f"I attempted to call a tool that doesn't exist. {feedback_message}",
+                        "tool_calls": [],
+                    })
+
+                    # Continue to next iteration instead of crashing
                     continue
-                content = getattr(delta, "content", None)
-                if content:
-                    assistant_text_chunks.append(content)
-                    sys.stdout.write(content)
-                    sys.stdout.flush()
-                tcs = getattr(delta, "tool_calls", None)
-                if tcs:
-                    for tc in tcs:
-                        idx = getattr(tc, "index", 0)
-                        if idx not in acc_tool_calls:
-                            acc_tool_calls[idx] = {
-                                "id": None,
-                                "type": "function",
-                                "function": {"name": None, "arguments": ""},
-                            }
-                        acc = acc_tool_calls[idx]
-                        tc_id = getattr(tc, "id", None)
-                        if tc_id:
-                            acc["id"] = tc_id
-                        tc_type = getattr(tc, "type", None)
-                        if tc_type:
-                            acc["type"] = tc_type
-                        fn = getattr(tc, "function", None)
-                        if fn:
-                            fn_name = getattr(fn, "name", None)
-                            fn_args = getattr(fn, "arguments", None)
-                            if fn_name:
-                                acc["function"]["name"] = fn_name
-                            if fn_args:
-                                acc["function"]["arguments"] += fn_args
+                else:
+                    # Re-raise other API errors
+                    raise
 
             print()
 
