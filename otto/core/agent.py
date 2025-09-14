@@ -153,23 +153,35 @@ class OttoAgent:
                 for call in finalized_calls:
                     if verbose:
                         print(f"[tool] call -> {call['function']['name']} args={call['function']['arguments']!r}")
-                    result = handle_tool_call(call)
 
-                    # Check if this is an unknown tool call
+                    # 1) Try extra explicit handler first (ensures custom tools work without registry knowledge)
+                    tool_name = (call.get("function") or {}).get("name") or ""
+                    handler = self.extra_tool_handlers.get(tool_name) if tool_name else None
+                    if not handler and self.extra_tool_handler:
+                        # fallback catch-all
+                        handler = self.extra_tool_handler
+
+                    if handler:
+                        result = handler(call)
+                    else:
+                        # 2) Fallback to built-in registry
+                        result = handle_tool_call(call)
+
+                    # Detect unknown tool result from registry
                     try:
                         content = json.loads(result.get("content", "{}"))
                         if isinstance(content, dict) and content.get('unknown_tool'):
-                            tool_name = content.get('tool_name', call['function']['name'])
+                            tool_name = content.get('tool_name', tool_name)
                             if verbose:
                                 print(f"Invalid tool call: The model attempted to use a tool called `{tool_name}` but it does not exist.")
                             unknown_tool_calls.append(tool_name)
-
-                            # Try extra handlers for unknown tools
-                            handler = self.extra_tool_handlers.get(tool_name) if tool_name else None
-                            if handler:
-                                result = handler(call)
-                            elif self.extra_tool_handler:
-                                result = self.extra_tool_handler(call)
+                            # If not previously handled, try custom handler now
+                            if not handler:
+                                handler = self.extra_tool_handlers.get(tool_name) if tool_name else None
+                                if handler:
+                                    result = handler(call)
+                                elif self.extra_tool_handler:
+                                    result = self.extra_tool_handler(call)
                     except (json.JSONDecodeError, KeyError):
                         pass
 
@@ -178,11 +190,22 @@ class OttoAgent:
                         print(f"[tool] result <- {preview[:500]}")
                     tool_results.append(result)
 
-                # If we had any unknown tool calls that weren't handled by extra handlers, provide feedback
+                # If we had any unknown tool calls, provide feedback listing all tools in this session
                 if unknown_tool_calls:
-                    available_tools = get_available_tool_names()
-                    feedback_message = f"The tool(s) {', '.join(f'`{t}`' for t in unknown_tool_calls)} do not exist. Please use only the tools that are available to you in this session. The available tools are: {', '.join(f'`{t}`' for t in available_tools)}."
-                    # Add this as a tool result so it appears in the conversation
+                    # Include both built-ins and this agent's extra tools
+                    builtin_names = get_available_tool_names()
+                    extra_names = []
+                    try:
+                        extra_names = [t.get("function", {}).get("name") for t in self.tools if t.get("function", {}).get("name")]
+                    except Exception:
+                        pass
+                    all_names = []
+                    seen = set()
+                    for n in (builtin_names + extra_names):
+                        if n and n not in seen:
+                            all_names.append(n)
+                            seen.add(n)
+                    feedback_message = f"The tool(s) {', '.join(f'`{t}`' for t in unknown_tool_calls)} do not exist. Please use only the tools that are available to you in this session. The available tools are: {', '.join(f'`{t}`' for t in all_names)}."
                     tool_results.append({
                         "role": "tool",
                         "tool_call_id": f"unknown_tools_feedback_{len(self.history)}",
